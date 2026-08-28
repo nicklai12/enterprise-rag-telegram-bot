@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "KBStatus",
+  "description": "Status board for the knowledge-base pipeline (status/kb_status.json).",
+  "type": "object",
+  "required": [
+    "updated_at",
+    "active_kb_run_id",
+    "runs"
+  ],
+  "properties": {
+    "updated_at": {
+      "type": ["string", "null"]
+    },
+    "active_kb_run_id": {
+      "type": ["string", "null"]
+    },
+    "runs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kb_run_id",
+          "started_at",
+          "status"
+        ],
+        "properties": {
+          "kb_run_id": { "type": "string" },
+          "started_at": { "type": "string" },
+          "finished_at": {
+            "type": ["string", "null"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["running", "success", "failed", "aborted"]
+          },
+          "summary": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

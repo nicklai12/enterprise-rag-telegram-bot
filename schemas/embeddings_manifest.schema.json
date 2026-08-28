@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EmbeddingsManifest",
+  "description": "Manifest for data/embeddings/{doc_id}.npy + {doc_id}.manifest.json. The chunk_order array defines how each row of the .npy maps back to chunk_index.",
+  "type": "object",
+  "required": [
+    "doc_id",
+    "source_file",
+    "department",
+    "status",
+    "timestamp",
+    "parse_errors",
+    "stage",
+    "embedding_model",
+    "embedding_dim",
+    "vector_count",
+    "chunk_order"
+  ],
+  "properties": {
+    "doc_id": { "type": "string" },
+    "source_file": { "type": "string" },
+    "department": { "type": "string" },
+    "status": { "type": "string" },
+    "timestamp": { "type": "string" },
+    "parse_errors": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "stage": {
+      "type": "string",
+      "enum": ["embedder"]
+    },
+    "embedding_model": { "type": "string" },
+    "embedding_dim": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "vector_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "chunk_order": {
+      "type": "array",
+      "description": "Ordered chunk_index values. Row i of the .npy file corresponds to chunks[chunk_order[i]].",
+      "items": {
+        "type": "integer",
+        "minimum": 0
+      }
+    }
+  },
+  "additionalProperties": false
+}

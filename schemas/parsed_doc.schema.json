@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ParsedDocument",
+  "description": "Content of data/parsed/{doc_id}.json. Mirrors an Unstructured element list.",
+  "type": "object",
+  "required": [
+    "doc_id",
+    "source_file",
+    "department",
+    "elements"
+  ],
+  "properties": {
+    "doc_id": { "type": "string" },
+    "source_file": { "type": "string" },
+    "department": { "type": "string" },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "text"
+        ],
+        "properties": {
+          "type": { "type": "string" },
+          "text": { "type": "string" },
+          "metadata": {
+            "type": "object"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,32 @@
+watch_folders:
+  - path: "data/raw/HR"
+    department: "HR"
+    access_level: "internal"
+
+auto_process_rules:
+  allow_paths: ["data/raw/HR"]
+  deny_keywords: ["合約", "薪資"]
+
+chunking:
+  strategy: "hierarchical"
+  chunk_size: 512
+  overlap: 0.2
+
+embedding:
+  model: "BAAI/bge-small-zh-v1.5"
+  batch_size: 16
+
+vectorstore:
+  provider: "chroma_cloud"
+  data_collection_name: "company_kb_data"
+  control_collection_name: "company_kb_control"
+  control_pointer_id: "active_pointer"
+
+llm:
+  provider: "groq"
+  model: "llama-3.1-8b-instant"
+  daily_request_cap: 500
+
+retrieval:
+  top_k: 5
+  golden_top_k: 3
