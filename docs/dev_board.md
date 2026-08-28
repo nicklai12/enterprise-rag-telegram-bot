@@ -1,6 +1,6 @@
 | Phase | 模組 | 負責 Agent/Session | 狀態 | PR | 證據報告 |
 |---|---|---|---|---|---|
-| 0 | 契約與骨架 | - | 待你審核 | （尚未建立 PR，本地分支：phase0-contracts） | docs/evidence_report_phase0.md |
+| 0 | 契約與骨架 | - | 待你審核 | https://github.com/nicklai12/enterprise-rag-telegram-bot/pull/2 | docs/evidence_report_phase0.md |
 | 1a | doc_classifier.py | - | 待處理 | | |
 | 1b | doc_watcher.py | - | 待處理 | | |
 | 2a | parser.py | - | 待處理 | | |
