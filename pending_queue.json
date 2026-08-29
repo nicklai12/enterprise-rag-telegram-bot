@@ -1,0 +1,32 @@
+[
+  {
+    "doc_id": "data_raw_HR_.gitkeep",
+    "source_file": "data/raw/HR/.gitkeep",
+    "department": "HR",
+    "decision": "auto_process"
+  },
+  {
+    "doc_id": "data_raw_HR_116行政院人事行政總處主管中央公教人員急難救助基金預算案",
+    "source_file": "data/raw/HR/116行政院人事行政總處主管中央公教人員急難救助基金預算案.pdf",
+    "department": "HR",
+    "decision": "auto_process"
+  },
+  {
+    "doc_id": "data_raw_HR_1930年代國民政府的造林事業",
+    "source_file": "data/raw/HR/1930年代國民政府的造林事業.PDF",
+    "department": "HR",
+    "decision": "auto_process"
+  },
+  {
+    "doc_id": "data_raw_HR_1995工業污染防治實例彙編",
+    "source_file": "data/raw/HR/1995工業污染防治實例彙編.PDF",
+    "department": "HR",
+    "decision": "auto_process"
+  },
+  {
+    "doc_id": "data_raw_HR_臺中市政府主計處115年度施政計畫",
+    "source_file": "data/raw/HR/臺中市政府主計處115年度施政計畫.pdf",
+    "department": "HR",
+    "decision": "auto_process"
+  }
+]
