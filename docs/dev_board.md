@@ -2,7 +2,7 @@
 |---|---|---|---|---|---|
 | 0 | 契約與骨架 | - | 待你審核 | https://github.com/nicklai12/enterprise-rag-telegram-bot/pull/2 | docs/evidence_report_phase0.md |
 | 1a | doc_classifier.py | - | 待你審核 | https://github.com/nicklai12/enterprise-rag-telegram-bot/pull/3 | docs/evidence_report_phase1a.md |
-| 1b | doc_watcher.py | - | 待處理 | | |
+| 1b | doc_watcher.py | - | 待你審核 | https://github.com/nicklai12/enterprise-rag-telegram-bot/pull/<TBD> | docs/evidence_report_phase1b.md |
 | 2a | parser.py | - | 待處理 | | |
 | 2b | chunker.py | - | 待處理 | | |
 | 2c | embedder.py | - | 待處理 | | |
