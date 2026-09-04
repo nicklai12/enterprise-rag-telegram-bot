@@ -1,0 +1,15 @@
+{
+  "doc_id": "sample",
+  "source_file": "data/raw/HR/sample_raw.txt",
+  "department": "HR",
+  "status": "embedded",
+  "timestamp": "2026-09-04T13:17:51.543117+00:00",
+  "parse_errors": [],
+  "stage": "embedder",
+  "embedding_model": "BAAI/bge-small-zh-v1.5",
+  "embedding_dim": 512,
+  "vector_count": 1,
+  "chunk_order": [
+    0
+  ]
+}
