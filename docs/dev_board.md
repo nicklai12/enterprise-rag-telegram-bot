@@ -5,7 +5,7 @@
 | 1b | doc_watcher.py | - | 待你審核 | https://github.com/nicklai12/enterprise-rag-telegram-bot/pull/4 | docs/evidence_report_phase1b.md |
 | 2a | parser.py | - | 待你審核 | https://github.com/nicklai12/enterprise-rag-telegram-bot/pull/6 | docs/evidence_report_phase2a.md |
 | 2b | chunker.py | - | 待你審核 | https://github.com/nicklai12/enterprise-rag-telegram-bot/pull/5 | docs/evidence_report_phase2b.md |
-| 2c | embedder.py | - | 待你審核 | | docs/evidence_report_phase2c.md |
+| 2c | embedder.py | - | 待你審核 | https://github.com/nicklai12/enterprise-rag-telegram-bot/pull/7 | docs/evidence_report_phase2c.md |
 | 3a | indexer.py | - | 待處理 | | |
 | 3b | verify_index.py | - | 待處理 | | |
 | 3c | publisher.py | - | 待處理 | | |
