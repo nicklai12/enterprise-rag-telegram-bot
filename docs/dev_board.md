@@ -8,7 +8,7 @@
 | 2c | embedder.py | - | 待你審核 | https://github.com/nicklai12/enterprise-rag-telegram-bot/pull/7 | docs/evidence_report_phase2c.md |
 | 3a | indexer.py | - | 待你審核 | https://github.com/nicklai12/enterprise-rag-telegram-bot/pull/8 | docs/evidence_report_phase3a.md |
 | 3b | verify_index.py | - | 待你審核 | https://github.com/nicklai12/enterprise-rag-telegram-bot/pull/9 | docs/evidence_report_phase3b.md |
-| 3c | publisher.py | - | 待處理 | | |
+| 3c | publisher.py | - | 待你審核 | https://github.com/nicklai12/enterprise-rag-telegram-bot/pull/10 | docs/evidence_report_phase3c.md |
 | 4 | bot.py | - | 待處理 | | |
 | 5 | workflow + 部署 | - | 待處理 | | |
 | 6 | 端到端驗收 | - | 待處理 | | |
