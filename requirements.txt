@@ -4,3 +4,5 @@ pytest>=7.0,<8.0
 unstructured[pdf,docx,xlsx]>=0.16,<0.19
 sentence-transformers>=3.0,<5.0
 chromadb>=0.5,<1.0
+python-telegram-bot>=21.0,<22.0
+groq>=0.11,<1.0
