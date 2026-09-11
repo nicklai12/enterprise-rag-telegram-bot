@@ -7,8 +7,8 @@ name: kb-pipeline
 
 on:
   schedule:
-    # 每日一次（UTC 23:17，避開整點尖峰）
-    - cron: "17 23 * * *"
+    # 每日一次（台北時間 02:30 = UTC 18:30，避開整點尖峰）
+    - cron: "30 18 * * *"
   # 手動觸發（驗收 / 除錯用）
   workflow_dispatch:
 
