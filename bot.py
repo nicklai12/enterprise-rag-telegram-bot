@@ -13,6 +13,12 @@ Access control (minimal guardrail, spec §5.9): if the environment variable
 ``BOT_ALLOWLIST`` is unset or empty, everyone is allowed; otherwise it is a
 comma-separated list of ids matched against the chat_id OR user_id.
 
+LLM model selection: the Groq model defaults to ``llm.model`` in
+``config/pipeline.yaml`` but can be overridden per-deployment with the
+``GROQ_MODEL`` environment variable (handy on Render, where repo files are
+not edited per environment). An empty ``GROQ_MODEL`` falls back to the YAML
+value.
+
 Connection: ``chromadb.CloudClient`` with credentials from
 ``CHROMA_API_KEY / CHROMA_TENANT / CHROMA_DATABASE``; Groq uses
 ``GROQ_API_KEY``; Telegram uses ``TELEGRAM_BOT_TOKEN``.
@@ -120,6 +126,13 @@ def format_sources(chunks: list[dict[str, Any]]) -> str:
     return "來源：\n" + "\n".join(lines)
 
 
+def resolve_llm_model(config: dict[str, Any]) -> str:
+    """Groq model: ``GROQ_MODEL`` env var overrides ``llm.model`` in pipeline.yaml."""
+    return os.environ.get("GROQ_MODEL") or config.get("llm", {}).get(
+        "model", "llama-3.1-8b-instant"
+    )
+
+
 def answer_question(
     question: str,
     *,
@@ -133,7 +146,7 @@ def answer_question(
     vectorstore = config.get("vectorstore", {})
     pointer_id = vectorstore.get("control_pointer_id", "active_pointer")
     top_k = int(config.get("retrieval", {}).get("top_k", 5))
-    model = config.get("llm", {}).get("model", "llama-3.1-8b-instant")
+    model = resolve_llm_model(config)
 
     active_kb_run_id = get_active_kb_run_id(control_collection, pointer_id)
     query_vector = embed_fn([question])[0]

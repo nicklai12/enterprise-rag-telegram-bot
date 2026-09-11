@@ -210,3 +210,59 @@ def test_no_chunks_replies_without_calling_llm():
     )
     assert called == []
     assert "查無相關資料" in answer
+
+
+def test_groq_model_env_var_overrides_yaml(monkeypatch):
+    """GROQ_MODEL env var wins over pipeline.yaml llm.model."""
+    control, data = _build_ephemeral_setup()
+    captured = {}
+
+    def fake_chat(prompt, model):
+        captured["model"] = model
+        return "回答"
+
+    monkeypatch.setenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    bot.answer_question(
+        "特休有幾天？",
+        config=bot.load_config(CONFIG_PATH),
+        control_collection=control,
+        data_collection=data,
+        embed_fn=_fake_embed,
+        chat_fn=fake_chat,
+    )
+    assert captured["model"] == "llama-3.3-70b-versatile"
+
+
+def test_groq_model_falls_back_to_yaml_when_env_unset_or_empty(monkeypatch):
+    """Unset/empty GROQ_MODEL → llm.model from pipeline.yaml is used."""
+    control, data = _build_ephemeral_setup()
+    captured = {}
+
+    def fake_chat(prompt, model):
+        captured["model"] = model
+        return "回答"
+
+    config = bot.load_config(CONFIG_PATH)
+    expected = config["llm"]["model"]
+
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+    bot.answer_question(
+        "特休有幾天？",
+        config=config,
+        control_collection=control,
+        data_collection=data,
+        embed_fn=_fake_embed,
+        chat_fn=fake_chat,
+    )
+    assert captured["model"] == expected
+
+    monkeypatch.setenv("GROQ_MODEL", "")
+    bot.answer_question(
+        "特休有幾天？",
+        config=config,
+        control_collection=control,
+        data_collection=data,
+        embed_fn=_fake_embed,
+        chat_fn=fake_chat,
+    )
+    assert captured["model"] == expected

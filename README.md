@@ -127,6 +127,7 @@ schemas/*.schema.json                  # 交接契約（manifest/status）
 | `GROQ_API_KEY` | Bot 生成回答 | Render env |
 | `TELEGRAM_BOT_TOKEN` | Bot | Render env |
 | `BOT_ALLOWLIST`（可選） | 最小安全護欄 | Render env（預設不設＝不限制） |
+| `GROQ_MODEL`（可選） | 覆蓋 pipeline.yaml 的 `llm.model`，便於不改 repo 換 Groq 模型 | Render env（預設不設＝用 pipeline.yaml） |
 
 > 注意：`config/pipeline.yaml` 為**控制面**，不得放任何密鑰。
 
@@ -222,6 +223,7 @@ retrieval:
 | `GROQ_API_KEY` | Groq LLM 生成回答 | 必填 |
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot Token（polling 模式） | 必填 |
 | `BOT_ALLOWLIST` | 允許的 chat_id / user_id（逗號分隔）；**不設＝不限制**（測試模式預設） | 選填 |
+| `GROQ_MODEL` | Groq 模型名稱，覆蓋 `config/pipeline.yaml` 的 `llm.model`（例如 `llama-3.3-70b-versatile`）；**不設＝使用 pipeline.yaml 預設值** | 選填 |
 
 4. 方案選 Free 即可（注意：free tier 可能 idle sleep 造成冷啟動延遲，為已知限制）。
 5. 部署後以真人 Telegram 帳號私訊 bot 一題知識庫內問題，確認回覆正確且附 `來源：` 頁尾。
