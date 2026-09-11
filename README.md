@@ -204,7 +204,7 @@ retrieval:
 
 > pipeline（classifier→publisher）只需要這三個；`GROQ_API_KEY` / `TELEGRAM_BOT_TOKEN` 只在 Bot 端使用，不需要設為 GitHub Secret。
 
-設定完成後，workflow 會依每日排程（UTC 23:17）自動執行；也可在 **Actions → kb-pipeline → Run workflow** 手動觸發（`workflow_dispatch`）。
+設定完成後，workflow 會依每日排程（台北時間 02:30 = UTC 18:30）自動執行；也可在 **Actions → kb-pipeline → Run workflow** 手動觸發（`workflow_dispatch`）。
 
 ### 2. Render 部署 bot.py（常駐）
 
