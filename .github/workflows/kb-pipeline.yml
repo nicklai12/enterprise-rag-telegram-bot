@@ -1,0 +1,113 @@
+# spec.md §8：企業 RAG 知識庫每日排程流水線
+#
+# 依序執行，任一步失敗即中止（verify 失敗 → publisher 被跳過，不發布）：
+#   classifier → watcher → parser → chunker → embedder → indexer
+#   → verify → publisher → commit status/kb_status.json
+name: kb-pipeline
+
+on:
+  schedule:
+    # 每日一次（UTC 23:17，避開整點尖峰）
+    - cron: "17 23 * * *"
+  # 手動觸發（驗收 / 除錯用）
+  workflow_dispatch:
+
+# 避免重疊執行：同 group 的 run 尚未結束時，新的 run 會「等待」前一個結束
+concurrency:
+  group: kb-pipeline
+  cancel-in-progress: false
+
+# Chroma Cloud 憑證一律由 GitHub Secrets 注入（pipeline.yaml 不含密鑰）
+env:
+  CHROMA_API_KEY: ${{ secrets.CHROMA_API_KEY }}
+  CHROMA_TENANT: ${{ secrets.CHROMA_TENANT }}
+  CHROMA_DATABASE: ${{ secrets.CHROMA_DATABASE }}
+
+permissions:
+  contents: write
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # 每次 pipeline 執行「共用一個」kb_run_id（spec §4.1），
+      # 由 workflow 產生並傳給 indexer / verify / publisher
+      - name: Generate kb_run_id
+        id: run_id
+        run: echo "kb_run_id=$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+
+      - name: classifier
+        run: python doc_classifier.py
+
+      - name: watcher
+        id: watcher
+        run: echo "batch=$(python doc_watcher.py | jq -c .)" >> "$GITHUB_OUTPUT"
+
+      # batch 為空（沒有新增/變更文件）時，略過 parser 之後的所有階段
+      - name: parser
+        if: ${{ steps.watcher.outputs.batch != '[]' }}
+        run: |
+          echo '${{ steps.watcher.outputs.batch }}' | jq -r '.[]' | while IFS= read -r f; do
+            python parser.py "$f"
+          done
+
+      - name: chunker
+        if: ${{ steps.watcher.outputs.batch != '[]' }}
+        run: |
+          echo '${{ steps.watcher.outputs.batch }}' | jq -r '.[]' | while IFS= read -r f; do
+            doc_id="${f%.*}"; doc_id="${doc_id//\//_}"
+            python chunker.py --parsed "data/parsed/${doc_id}.json"
+          done
+
+      - name: embedder
+        if: ${{ steps.watcher.outputs.batch != '[]' }}
+        run: |
+          echo '${{ steps.watcher.outputs.batch }}' | jq -r '.[]' | while IFS= read -r f; do
+            doc_id="${f%.*}"; doc_id="${doc_id//\//_}"
+            python embedder.py --chunks "data/chunks/${doc_id}.json"
+          done
+
+      - name: indexer
+        if: ${{ steps.watcher.outputs.batch != '[]' }}
+        run: |
+          echo '${{ steps.watcher.outputs.batch }}' | jq -r '.[]' | while IFS= read -r f; do
+            doc_id="${f%.*}"; doc_id="${doc_id//\//_}"
+            python indexer.py \
+              --chunks "data/chunks/${doc_id}.json" \
+              --embeddings "data/embeddings/${doc_id}.npy" \
+              --kb-run-id "${{ steps.run_id.outputs.kb_run_id }}"
+          done
+
+      # 只讀審計候選 kb_run_id；任何一項檢查不過 → exit code 非 0 → publisher 被跳過
+      - name: verify
+        if: ${{ steps.watcher.outputs.batch != '[]' }}
+        run: python verify_index.py --kb-run-id "${{ steps.run_id.outputs.kb_run_id }}"
+
+      # 只有 verify 成功（success()）才會執行：更新 control collection 的 active 指標
+      - name: publisher
+        if: ${{ success() && steps.watcher.outputs.batch != '[]' }}
+        run: python publisher.py --kb-run-id "${{ steps.run_id.outputs.kb_run_id }}"
+
+      # 看板/報告 commit 回 repo（verify 失敗也會把 failed 紀錄寫進 kb_status.json）
+      - name: commit kb_status.json
+        if: ${{ always() && steps.watcher.outputs.batch != '[]' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add status/kb_status.json status/watcher_state.json
+          if git diff --cached --quiet; then
+            echo "no status changes to commit"
+          else
+            git commit -m "chore: update kb status [skip ci]"
+            git push
+          fi
