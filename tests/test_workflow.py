@@ -95,6 +95,13 @@ def test_chroma_credentials_from_secrets_only():
     assert not re.search(r"(?i)(api[_-]?key|token|secret)\s*[:=]\s*['\"][A-Za-z0-9_\-]{16,}", text)
 
 
+def test_system_dependencies_installed():
+    """unstructured（poppler）與 torch/PIL（libGL）需先裝系統套件。"""
+    run = _step(_workflow(), "Install system dependencies")["run"]
+    assert "poppler-utils" in run
+    assert "libgl1" in run
+
+
 def test_commit_step_records_status_even_on_failure():
     commit_if = _step(_workflow(), "commit kb_status.json")["if"]
     assert "always()" in commit_if
