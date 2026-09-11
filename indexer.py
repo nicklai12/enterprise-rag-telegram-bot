@@ -149,9 +149,14 @@ def main() -> None:
         default=CONFIG_PATH,
         help="Path to pipeline.yaml.",
     )
+    parser.add_argument(
+        "--kb-run-id",
+        default=None,
+        help="kb_run_id to write under (default: generate YYYYMMDD-HHMMSS).",
+    )
     args = parser.parse_args()
     try:
-        manifest = run(args.chunks, args.embeddings, args.config)
+        manifest = run(args.chunks, args.embeddings, args.config, kb_run_id=args.kb_run_id)
     except Exception as exc:
         print(f"indexer failed: {exc}", file=sys.stderr)
         sys.exit(1)

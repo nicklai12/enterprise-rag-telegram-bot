@@ -169,3 +169,27 @@ def test_new_kb_run_id_format():
     run_id = indexer.new_kb_run_id(dt.datetime(2026, 9, 4, 13, 30, 45))
     assert run_id == "20260904-133045"
     assert len(run_id) == 15 and run_id[8] == "-"
+
+
+def test_cli_kb_run_id_flag(tmp_path, monkeypatch, capsys):
+    """--kb-run-id lets one workflow run share a single kb_run_id across docs."""
+    chunks_path, npy_path = _write_fixture(tmp_path, TEXTS_3)
+    client = chromadb.EphemeralClient()
+    monkeypatch.setattr(indexer, "connect_chroma", lambda: client)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "indexer.py",
+            "--chunks", str(chunks_path),
+            "--embeddings", str(npy_path),
+            "--kb-run-id", "20260911-010101",
+        ],
+    )
+    indexer.main()
+    manifest = json.loads(capsys.readouterr().out)
+    assert manifest["kb_run_id"] == "20260911-010101"
+    results = client.get_collection(COLLECTION_NAME).get(
+        where={"kb_run_id": "20260911-010101"}
+    )
+    assert len(results["ids"]) == 3
