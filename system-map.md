@@ -51,8 +51,8 @@ Telegram Bot（Render 常駐，只讀）
 
 | 元件 | 單一職責 | 輸入 | 輸出 |
 |------|----------|------|------|
-| `doc_classifier.py` | 規則式判斷文件 🟢/🔴（可自動/需人工） | `data/raw/**` + `pipeline.yaml` | `pending_queue.json` |
-| `doc_watcher.py` | 找出新增/變更文件（上限 20 份/次） | `pending_queue.json` | 本次待處理清單 |
+| `doc_classifier.py` | 規則式判斷文件 🟢/🔴（可自動/需人工）；跳過點檔 | `data/raw/**` + `pipeline.yaml` | `pending_queue.json` |
+| `doc_watcher.py` | 以 hash 比對找出新增/變更文件（上限 20 份/次）；已處理狀態僅在 pipeline 成功後持久化 | `pending_queue.json` + `status/watcher_state.json` | 本次待處理清單 + 更新 `status/watcher_state.json` |
 | `parser.py` | Unstructured 解析單一文件 | raw file | `data/parsed/{doc_id}.json` + manifest |
 | `chunker.py` | hierarchical chunking + metadata | parsed json + manifest | `data/chunks/{doc_id}.json` + manifest |
 | `embedder.py` | 產生向量（以中文為主的 embedding model） | chunks json | `data/embeddings/{doc_id}.npy` + manifest |
@@ -71,7 +71,9 @@ data/parsed/{doc_id}.json + .manifest.json
 data/chunks/{doc_id}.json + .manifest.json
 data/embeddings/{doc_id}.npy + .manifest.json
 
-status/kb_status.json                  # 看板狀態（commit 回 repo）
+status/kb_status.json                  # 看板狀態（每輪 commit 回 repo，含 failed 紀錄）
+status/watcher_state.json              # watcher 狀態（僅 pipeline 完整成功時 commit；
+                                       #   中途失敗的批次不標記為已處理，下一輪自動重試）
 tests/golden_qa.yaml                   # 黃金測試集（繁中為主）
 config/pipeline.yaml                   # 控制面設定（不含密鑰）
 schemas/*.schema.json                  # 交接契約（manifest/status）
@@ -107,6 +109,6 @@ schemas/*.schema.json                  # 交接契約（manifest/status）
 - 結構化通訊：manifest / status schema
 - 控制面分離：pipeline.yaml
 - 零信任審計：verify_index.py（只讀）
-- 防禦性設計：concurrency lock、每次最多 20 份
+- 防禦性設計：concurrency lock、每次最多 20 份、watcher_state 僅成功時提交（失敗批次自動重試）
 - 實證反饋：golden_qa 命中率 + Action Summary + kb_status.json
 - 做法 B（發布）：kb_run_id + active pointer（control collection）

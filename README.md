@@ -60,7 +60,7 @@ Telegram Bot（Render 常駐，只讀）
 - Chroma Cloud：`data/control` 兩個 collections
 - GitHub Actions 每日排程更新（concurrency lock）
 - Telegram Bot（python-telegram-bot polling）+ Groq 回答 + 引用來源
-- 黃金測試集 `tests/golden_qa.yaml`（20 題、繁中為主）+ 命中率門檻
+- 黃金測試集 `tests/golden_qa.yaml`（繁中為主）+ 命中率門檻
 - 做法 B 發布：`kb_run_id` + `active_kb_run_id`
 
 ### Out of Scope（本階段不做）
@@ -99,7 +99,9 @@ data/parsed/{doc_id}.json + .manifest.json
 data/chunks/{doc_id}.json + .manifest.json
 data/embeddings/{doc_id}.npy + .manifest.json
 
-status/kb_status.json                  # 看板狀態（commit 回 repo）
+status/kb_status.json                  # 看板狀態（每輪 commit 回 repo，含 failed 紀錄）
+status/watcher_state.json              # watcher 狀態（僅 pipeline 完整成功時 commit；
+                                       #   中途失敗的批次不標記為已處理，下一輪自動重試）
 tests/golden_qa.yaml                   # 黃金測試集（繁中為主）
 config/pipeline.yaml                   # 控制面設定（不含密鑰）
 schemas/*.schema.json                  # 交接契約（manifest/status）
@@ -178,15 +180,16 @@ retrieval:
 
 同一個 workflow 內依序執行，**任一步失敗即中止**：
 
-1. `doc_classifier.py`
-2. `doc_watcher.py`（單次最多處理 20 份）
+1. `doc_classifier.py`（跳過點檔如 `.gitkeep`，不進流水線）
+2. `doc_watcher.py`（以 hash 比對偵測新增/變更；單次最多處理 20 份）
 3. `parser.py`（單一文件失敗不會讓整批 crash；寫 manifest `status: failed`）
 4. `chunker.py`
 5. `embedder.py`（manifest 需記錄 `embedding_dim`，不可在 spec 寫死）
 6. `indexer.py`（寫入 Chroma：候選 `kb_run_id`；寫入失敗需 exit code ≠ 0）
 7. `verify_index.py`（只讀審計候選 `kb_run_id`）
 8. `publisher.py`（只有 verify 成功才執行：更新 `active_kb_run_id`）
-9. 更新/commit `status/kb_status.json`
+9. commit `status/kb_status.json`（`always()`，含 failed 紀錄）
+10. commit `status/watcher_state.json`（僅 `success()`：失敗的批次不標記為已處理，下一輪重試）
 
 ---
 
@@ -269,6 +272,7 @@ Bot 流程：
 - [ ] verify 失敗時，publisher 不會執行，Bot 不會切到新版本
 - [ ] verify 通過後，publisher 更新 `active_kb_run_id`，Bot 查詢只命中該版本
 - [ ] golden_qa 命中率 ≥ 80%
+- [ ] pipeline 中途失敗時，該批文件不會被標記為已處理（`watcher_state.json` 僅成功時 commit），下一輪會重新處理
 
 ---
 
@@ -277,6 +281,7 @@ Bot 流程：
 - Chroma Cloud 免費額度用盡需人工處理（未做自動監控/攔截）
 - 做法 B 會累積舊 `kb_run_id` 資料：未提供自動清理舊版本機制
 - Render free tier 可能 idle sleep 造成冷啟動延遲
+- `kb_status.json` 僅由 `verify_index.py` 寫入：在 verify 之前失敗的輪次（如 parser/chunker 失敗）不會留下 failed 紀錄，觀測上有缺口
 
 ---
 

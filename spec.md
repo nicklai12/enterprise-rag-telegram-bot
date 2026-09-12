@@ -23,7 +23,7 @@
 - Chroma Cloud：data/control 兩個 collections
 - GitHub Actions 排程更新（每日一次）
 - Telegram Bot + Groq 回答 + 引用來源
-- 黃金測試集（20 題，繁中為主）+ 命中率門檻
+- 黃金測試集（繁中為主，題數見 `tests/golden_qa.yaml`）+ 命中率門檻
 - 做法 B 發布：`kb_run_id` + `active_kb_run_id`
 
 ### Out of Scope（本階段不做）
@@ -37,7 +37,7 @@
 
 ## 3. 技術棧
 - Parsing：Unstructured.io
-- Chunking / Retrieval：LlamaIndex（可搭 LangChain 組裝 prompt，但不要求一定用）
+- Chunking：自訂 hierarchical chunking（LlamaIndex 為早期規劃選項，實作未採用）
 - Embedding：Sentence-Transformers（**中文為主模型**，預設 `BAAI/bge-small-zh-v1.5`；可在 pipeline.yaml 調整）
 - Vector DB：Chroma Cloud（CloudClient）
 - LLM：Groq
@@ -78,10 +78,12 @@
 ### 5.1 doc_classifier.py
 - 依 `pipeline.yaml:auto_process_rules` 規則輸出 `pending_queue.json`
 - 規則式（資料夾白名單 + 關鍵字黑名單），**不使用 LLM 判斷敏感度**
+- 跳過點檔（`.gitkeep` / `.DS_Store` 等）：非文件，且 doc_id 推導在點檔上有歧義
 
 ### 5.2 doc_watcher.py
-- 找出新增/變更文件
+- 以 hash 比對 `status/watcher_state.json`，找出新增/變更文件
 - 防禦性設計：單次最多處理 20 份（超過留到下次）
+- 「已處理」狀態僅在 pipeline 完整成功後才 commit 回 repo：中途失敗的批次下一輪會重新排入，不會被靜默跳過
 
 ### 5.3 parser.py
 - 解析單一文件 → `data/parsed/{doc_id}.json` + manifest
@@ -203,7 +205,8 @@ retrieval:
 6. indexer（寫入候選 kb_run_id）
 7. verify（只讀審計候選 kb_run_id）
 8. publisher（更新 active 指標 = 發布）
-9. 更新/commit `status/kb_status.json`（看板/報告）
+9. commit `status/kb_status.json`（看板/報告，`always()` 提交，含 verify 產生的 failed 紀錄）
+10. commit `status/watcher_state.json`（僅 `success()` 提交；失敗的批次不標記為已處理，下一輪重試）
 
 ---
 
@@ -213,6 +216,7 @@ retrieval:
 - [ ] verify 失敗時，publisher 不會執行，Bot 不會切到新版本
 - [ ] verify 通過後，publisher 更新 active_kb_run_id，Bot 查詢只命中該版本
 - [ ] golden_qa 命中率 ≥ 80%
+- [ ] pipeline 中途失敗時，該批文件不會被標記為已處理（`watcher_state.json` 僅成功時 commit），下一輪會重新處理
 
 ---
 
@@ -220,3 +224,4 @@ retrieval:
 - Chroma Cloud 免費額度用盡需人工處理（未做自動監控/攔截）
 - 做法 B 會累積舊 kb_run_id 資料：未提供自動清理舊版本機制
 - Render free tier 可能 idle sleep 造成冷啟動延遲
+- `kb_status.json` 僅由 `verify_index.py` 寫入：在 verify 之前失敗的輪次（如 parser/chunker 失敗）不會留下 failed 紀錄，觀測上有缺口
