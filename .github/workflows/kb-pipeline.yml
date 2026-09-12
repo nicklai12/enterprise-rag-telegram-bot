@@ -69,7 +69,8 @@ jobs:
         if: ${{ steps.watcher.outputs.batch != '[]' }}
         run: |
           echo '${{ steps.watcher.outputs.batch }}' | jq -r '.[]' | while IFS= read -r f; do
-            doc_id="${f%.*}"; doc_id="${doc_id//\//_}"
+            # doc_id 一律由 doc_classifier 推導，避免 shell 規則與 Python 漂移（issue #15）
+            doc_id=$(python doc_classifier.py --doc-id "$f")
             python chunker.py --parsed "data/parsed/${doc_id}.json"
           done
 
@@ -77,7 +78,7 @@ jobs:
         if: ${{ steps.watcher.outputs.batch != '[]' }}
         run: |
           echo '${{ steps.watcher.outputs.batch }}' | jq -r '.[]' | while IFS= read -r f; do
-            doc_id="${f%.*}"; doc_id="${doc_id//\//_}"
+            doc_id=$(python doc_classifier.py --doc-id "$f")
             python embedder.py --chunks "data/chunks/${doc_id}.json"
           done
 
@@ -85,7 +86,7 @@ jobs:
         if: ${{ steps.watcher.outputs.batch != '[]' }}
         run: |
           echo '${{ steps.watcher.outputs.batch }}' | jq -r '.[]' | while IFS= read -r f; do
-            doc_id="${f%.*}"; doc_id="${doc_id//\//_}"
+            doc_id=$(python doc_classifier.py --doc-id "$f")
             python indexer.py \
               --chunks "data/chunks/${doc_id}.json" \
               --embeddings "data/embeddings/${doc_id}.npy" \

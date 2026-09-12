@@ -86,6 +86,42 @@ def test_clean_file_is_auto_processed(tmp_path: pathlib.Path):
     assert queue[0]["department"] == "HR"
 
 
+def test_dotfiles_are_skipped(tmp_path: pathlib.Path):
+    """Dotfiles like .gitkeep are not documents and must not enter the queue.
+
+    Regression test for issue #15: .gitkeep under data/raw/HR was parsed and
+    then crashed the chunker because shell and Python doc_id rules diverged.
+    """
+    config_path = _write_config(
+        tmp_path, allow_paths=["data/raw/HR"], deny_keywords=[]
+    )
+    raw_dir = _make_raw_tree(
+        tmp_path, ["HR/請假規則.txt", "HR/.gitkeep", "HR/.DS_Store"]
+    )
+    output_path = tmp_path / "pending_queue.json"
+
+    queue = doc_classifier.run(config_path, output_path, raw_dir)
+
+    assert [item["source_file"] for item in queue] == ["data/raw/HR/請假規則.txt"]
+
+
+def test_doc_id_cli_matches_python_rule():
+    """`doc_classifier.py --doc-id` prints the doc_id used by parser/chunker."""
+    import subprocess
+
+    source = "data/raw/HR/請假規則.txt"
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "doc_classifier.py"), "--doc-id", source],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=ROOT,
+    )
+
+    assert result.stdout.strip() == doc_classifier._doc_id(source)
+
+
+
 def test_output_validates_against_schema(tmp_path: pathlib.Path):
     """The generated pending_queue.json passes the schema validation."""
     config_path = _write_config(

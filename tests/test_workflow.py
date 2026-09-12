@@ -106,3 +106,16 @@ def test_commit_step_records_status_even_on_failure():
     commit_if = _step(_workflow(), "commit kb_status.json")["if"]
     assert "always()" in commit_if
     assert "status/kb_status.json" in _step(_workflow(), "commit kb_status.json")["run"]
+
+
+def test_doc_id_derived_by_doc_classifier_not_shell():
+    """All per-document stages derive doc_id via ``doc_classifier.py --doc-id``.
+
+    Regression test for issue #15: shell ``${f%.*}`` and Python
+    ``PurePath.with_suffix`` diverge on dotfiles (e.g. .gitkeep), which
+    crashed the chunker with a FileNotFoundError on the parsed JSON.
+    """
+    for name in ("chunker", "embedder", "indexer"):
+        run = _step(_workflow(), name)["run"]
+        assert "doc_classifier.py --doc-id" in run, name
+        assert "${f%.*}" not in run, name

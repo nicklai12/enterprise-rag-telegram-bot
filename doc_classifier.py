@@ -83,11 +83,15 @@ def classify(
 
 
 def scan_raw_files(raw_dir: pathlib.Path) -> list[str]:
-    """Return repo-relative POSIX paths for every file under ``raw_dir``."""
+    """Return repo-relative POSIX paths for every file under ``raw_dir``.
+
+    Dotfiles (``.gitkeep``, ``.DS_Store``, ...) are skipped: they are not
+    documents and their doc_id derivation is ambiguous (see issue #15).
+    """
     repo_root = raw_dir.resolve().parent.parent
     files: list[str] = []
     for path in sorted(raw_dir.rglob("*")):
-        if path.is_file():
+        if path.is_file() and not path.name.startswith("."):
             rel = path.resolve().relative_to(repo_root).as_posix()
             files.append(rel)
     return files
@@ -115,4 +119,21 @@ def run(
 
 
 if __name__ == "__main__":
+    import argparse
+    import sys
+
+    cli = argparse.ArgumentParser(description=__doc__)
+    cli.add_argument(
+        "--doc-id",
+        metavar="SOURCE_FILE",
+        help="Print the doc_id for a repo-relative source path and exit. "
+        "Used by the kb-pipeline workflow so doc_id derivation stays "
+        "identical across stages (issue #15).",
+    )
+    args = cli.parse_args()
+
+    if args.doc_id:
+        print(_doc_id(args.doc_id))
+        sys.exit(0)
+
     run()
