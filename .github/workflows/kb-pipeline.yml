@@ -109,10 +109,25 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add status/kb_status.json status/watcher_state.json
+          git add status/kb_status.json
           if git diff --cached --quiet; then
             echo "no status changes to commit"
           else
             git commit -m "chore: update kb status [skip ci]"
+            git push
+          fi
+
+      # watcher_state 只反映「完整跑完」的批次。中途失敗時這批文件實際未進索引，
+      # 若照樣提交 state，之後每輪 watcher 都會因 hash 相符而靜默跳過它們（issue #17）
+      - name: commit watcher_state.json
+        if: ${{ success() && steps.watcher.outputs.batch != '[]' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add status/watcher_state.json
+          if git diff --cached --quiet; then
+            echo "no watcher state changes to commit"
+          else
+            git commit -m "chore: update watcher state [skip ci]"
             git push
           fi
