@@ -105,7 +105,25 @@ def test_system_dependencies_installed():
 def test_commit_step_records_status_even_on_failure():
     commit_if = _step(_workflow(), "commit kb_status.json")["if"]
     assert "always()" in commit_if
-    assert "status/kb_status.json" in _step(_workflow(), "commit kb_status.json")["run"]
+    run = _step(_workflow(), "commit kb_status.json")["run"]
+    assert "status/kb_status.json" in run
+    # watcher_state.json 不得在此步驟提交，避免失敗輪次污染狀態（issue #17）
+    assert "watcher_state" not in run
+
+
+def test_watcher_state_committed_only_on_success():
+    """watcher_state.json must not be committed after a failed run.
+
+    Regression test for issue #17: the state is written at batch-selection
+    time, so committing it with ``always()`` permanently marks documents as
+    processed even though they never reached the index, and every later run
+    silently skips them.
+    """
+    step = _step(_workflow(), "commit watcher_state.json")
+    assert "success()" in step["if"], step["if"]
+    assert "always()" not in step["if"], step["if"]
+    assert "status/watcher_state.json" in step["run"]
+    assert "status/kb_status.json" not in step["run"]
 
 
 def test_doc_id_derived_by_doc_classifier_not_shell():
