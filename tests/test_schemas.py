@@ -108,5 +108,6 @@ def test_pipeline_yaml_contains_required_keys():
 def test_golden_qa_yaml_is_loadable():
     qa = _load_yaml(ROOT / "tests" / "golden_qa.yaml")
     assert isinstance(qa, list)
-    assert len(qa) == 3
+    # 題數會隨知識庫內容成長，不斷言固定數量，只驗證結構契約
+    assert len(qa) > 0
     assert all("question" in item and "expected_doc_id" in item for item in qa)
