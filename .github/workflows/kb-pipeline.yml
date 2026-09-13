@@ -65,27 +65,51 @@ jobs:
             python parser.py "$f"
           done
 
-      - name: chunker
-        if: ${{ steps.watcher.outputs.batch != '[]' }}
+      # 依 parser 寫出的 manifest 彙整「解析成功／失敗」清單。
+      # 不透過解析 parser stdout 判斷狀態：unstructured 會把警告印在 stdout 上，
+      # 與 manifest JSON 混在一起。下游只處理解析成功的文件（issue #20）。
+      # 無 if：batch 為空時自然輸出 ok='[]'，下游步驟据此全部略過。
+      - name: parser results
+        id: parser_results
         run: |
-          echo '${{ steps.watcher.outputs.batch }}' | jq -r '.[]' | while IFS= read -r f; do
+          ok='[]'
+          failed='[]'
+          while IFS= read -r f; do
+            doc_id=$(python doc_classifier.py --doc-id "$f")
+            manifest="data/parsed/${doc_id}.manifest.json"
+            if [ -f "$manifest" ] && [ "$(jq -r .status "$manifest")" = "success" ]; then
+              ok=$(jq -c --arg f "$f" '. + [$f]' <<<"$ok")
+            else
+              failed=$(jq -c --arg f "$f" '. + [$f]' <<<"$failed")
+              echo "::warning::parser failed: $f (manifest: $manifest)"
+            fi
+          done < <(echo '${{ steps.watcher.outputs.batch }}' | jq -r '.[]')
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
+
+      # 只迭代 parser 成功的文件：解析失敗的文件（如掃描件缺 OCR，issue #19）
+      # 沒有 parsed json，直接跑會 FileNotFoundError 拖垮整批（issue #20）
+      - name: chunker
+        if: ${{ steps.parser_results.outputs.ok != '[]' }}
+        run: |
+          echo '${{ steps.parser_results.outputs.ok }}' | jq -r '.[]' | while IFS= read -r f; do
             # doc_id 一律由 doc_classifier 推導，避免 shell 規則與 Python 漂移（issue #15）
             doc_id=$(python doc_classifier.py --doc-id "$f")
             python chunker.py --parsed "data/parsed/${doc_id}.json"
           done
 
       - name: embedder
-        if: ${{ steps.watcher.outputs.batch != '[]' }}
+        if: ${{ steps.parser_results.outputs.ok != '[]' }}
         run: |
-          echo '${{ steps.watcher.outputs.batch }}' | jq -r '.[]' | while IFS= read -r f; do
+          echo '${{ steps.parser_results.outputs.ok }}' | jq -r '.[]' | while IFS= read -r f; do
             doc_id=$(python doc_classifier.py --doc-id "$f")
             python embedder.py --chunks "data/chunks/${doc_id}.json"
           done
 
       - name: indexer
-        if: ${{ steps.watcher.outputs.batch != '[]' }}
+        if: ${{ steps.parser_results.outputs.ok != '[]' }}
         run: |
-          echo '${{ steps.watcher.outputs.batch }}' | jq -r '.[]' | while IFS= read -r f; do
+          echo '${{ steps.parser_results.outputs.ok }}' | jq -r '.[]' | while IFS= read -r f; do
             doc_id=$(python doc_classifier.py --doc-id "$f")
             python indexer.py \
               --chunks "data/chunks/${doc_id}.json" \
@@ -95,13 +119,24 @@ jobs:
 
       # 只讀審計候選 kb_run_id；任何一項檢查不過 → exit code 非 0 → publisher 被跳過
       - name: verify
-        if: ${{ steps.watcher.outputs.batch != '[]' }}
+        if: ${{ steps.parser_results.outputs.ok != '[]' }}
         run: python verify_index.py --kb-run-id "${{ steps.run_id.outputs.kb_run_id }}"
 
       # 只有 verify 成功（success()）才會執行：更新 control collection 的 active 指標
       - name: publisher
-        if: ${{ success() && steps.watcher.outputs.batch != '[]' }}
+        if: ${{ success() && steps.parser_results.outputs.ok != '[]' }}
         run: python publisher.py --kb-run-id "${{ steps.run_id.outputs.kb_run_id }}"
+
+      # 批次內有任何文件解析失敗時讓整輪標記為失敗：
+      # 成功的文件已完成入庫/發布，但 watcher_state 不提交（僅 success()），
+      # 失敗的文件下一輪重新排入重試，不會被靜默標記為已處理（issue #17/#20）
+      - name: parse failure gate
+        if: ${{ steps.watcher.outputs.batch != '[]' && steps.parser_results.outputs.failed != '[]' }}
+        run: |
+          echo '${{ steps.parser_results.outputs.failed }}' | jq -r '.[]' | while IFS= read -r f; do
+            echo "::error::parser failed (will retry next run): $f"
+          done
+          exit 1
 
       # 看板/報告 commit 回 repo（verify 失敗也會把 failed 紀錄寫進 kb_status.json）
       - name: commit kb_status.json

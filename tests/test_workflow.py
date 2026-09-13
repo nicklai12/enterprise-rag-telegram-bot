@@ -137,3 +137,36 @@ def test_doc_id_derived_by_doc_classifier_not_shell():
         run = _step(_workflow(), name)["run"]
         assert "doc_classifier.py --doc-id" in run, name
         assert "${f%.*}" not in run, name
+
+
+def test_downstream_steps_iterate_parser_successes():
+    """chunker/embedder/indexer only process documents the parser succeeded on.
+
+    Regression test for issue #20: parser failures (e.g. a scanned PDF
+    requiring OCR, issue #19) leave no ``{doc_id}.json`` behind; iterating the
+    raw watcher batch then crashed the chunker with FileNotFoundError and
+    killed the whole batch. The parser-results step summarizes manifests into
+    an ``ok`` list that downstream steps iterate instead.
+    """
+    wf = _workflow()
+    results = _step(wf, "parser results")
+    assert results.get("id") == "parser_results"
+    assert ".manifest.json" in results["run"]
+    for name in ("chunker", "embedder", "indexer", "verify", "publisher"):
+        assert "steps.parser_results.outputs.ok" in _step(wf, name)["if"], name
+
+
+def test_parse_failure_gate_fails_run_for_retry():
+    """A batch with any parser failure must end red, so watcher_state is not
+    committed and the failed docs are retried next round.
+
+    Without the gate, skipped failures would leave the job green and
+    ``success()`` would commit watcher_state.json, silently marking
+    never-indexed docs as processed (the issue #17 failure mode, reintroduced
+    by making downstream steps skip instead of crash).
+    """
+    wf = _workflow()
+    gate = _step(wf, "parse failure gate")
+    assert "steps.parser_results.outputs.failed" in gate["if"], gate["if"]
+    assert "steps.watcher.outputs.batch" in gate["if"], gate["if"]
+    assert "exit 1" in gate["run"]

@@ -183,6 +183,8 @@ retrieval:
 1. `doc_classifier.py`（跳過點檔如 `.gitkeep`，不進流水線）
 2. `doc_watcher.py`（以 hash 比對偵測新增/變更；單次最多處理 20 份）
 3. `parser.py`（單一文件失敗不會讓整批 crash；寫 manifest `status: failed`）
+   - workflow 依 manifest 彙整「解析成功清單」，chunker / embedder / indexer 只處理清單內的文件（issue #20）
+   - 批次內只要有文件解析失敗，整輪仍標記為**失敗**：成功的文件會完成入庫/發布，但 `watcher_state.json` 不提交，失敗的文件下一輪重新排入重試，不會被靜默標記為已處理（issue #17）
 4. `chunker.py`
 5. `embedder.py`（manifest 需記錄 `embedding_dim`，不可在 spec 寫死）
 6. `indexer.py`（寫入 Chroma：候選 `kb_run_id`；寫入失敗需 exit code ≠ 0）
