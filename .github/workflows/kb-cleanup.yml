@@ -51,8 +51,9 @@ jobs:
 
       - name: Inspect database
         if: ${{ inputs.mode == 'inspect' }}
-        # 唯讀盤點：列出 database 內所有 collection 的筆數與 kb_run_id 分佈，
-        # 用來定位 quota 統計中的殘留資料落在哪個 collection（issue #25）
+        # 唯讀盤點：列出 tenant 內「所有 database」的 collection 筆數與 kb_run_id 分佈。
+        # Chroma Cloud Starter 的 NumRecords 額度可能跨 database 計算——
+        # 若殘留資料落在 pipeline 使用的 database 之外，只在單庫內找會找不到（issue #25）。
         run: |
           python - <<'EOF'
           import json
@@ -60,25 +61,41 @@ jobs:
           from collections import Counter
 
           import chromadb
+          from chromadb import AdminClient, Settings
 
-          client = chromadb.CloudClient(
-              api_key=os.environ["CHROMA_API_KEY"],
-              tenant=os.environ["CHROMA_TENANT"],
-              database=os.environ["CHROMA_DATABASE"],
+          api_key = os.environ["CHROMA_API_KEY"]
+          tenant = os.environ["CHROMA_TENANT"]
+
+          cloud_settings = Settings(
+              chroma_api_impl="chromadb.api.fastapi.FastAPI",
+              chroma_server_host="api.trychroma.com",
+              chroma_server_http_port=443,
+              chroma_server_ssl_enabled=True,
+              chroma_client_auth_provider="chromadb.auth.token_authn.TokenAuthClientProvider",
+              chroma_client_auth_credentials=api_key,
+              chroma_auth_token_transport_header="X-Chroma-Token",
+              chroma_overwrite_singleton_tenant_database_access_from_auth=True,
           )
+          admin = AdminClient(settings=cloud_settings)
+          databases = admin.list_databases(tenant=tenant)
+
           report = []
-          for name in sorted(c.name for c in client.list_collections()):
-              col = client.get_collection(name)
-              entry = {"collection": name, "records": col.count()}
-              if entry["records"]:
-                  found = col.get(include=["metadatas"])
-                  runs = Counter(
-                      (m or {}).get("kb_run_id") or "(no kb_run_id)"
-                      for m in found["metadatas"]
-                  )
-                  entry["kb_run_ids"] = dict(sorted(runs.items()))
-              report.append(entry)
-          print(json.dumps({"collections": report}, ensure_ascii=False, indent=2))
+          for db in databases:
+              client = chromadb.CloudClient(tenant=tenant, database=db.name, api_key=api_key)
+              collections = []
+              for name in sorted(c.name for c in client.list_collections()):
+                  col = client.get_collection(name)
+                  entry = {"collection": name, "records": col.count()}
+                  if entry["records"]:
+                      found = col.get(include=["metadatas"])
+                      runs = Counter(
+                          (m or {}).get("kb_run_id") or "(no kb_run_id)"
+                          for m in found["metadatas"]
+                      )
+                      entry["kb_run_ids"] = dict(sorted(runs.items()))
+                  collections.append(entry)
+              report.append({"database": db.name, "collections": collections})
+          print(json.dumps({"tenant": tenant, "databases": report}, ensure_ascii=False, indent=2))
           EOF
 
       - name: Run cleanup
