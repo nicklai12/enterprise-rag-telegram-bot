@@ -153,3 +153,23 @@ def test_deletes_records_missing_kb_run_id_metadata(tmp_path):
     report = cleanup_old_kb_runs.run(config_path=config_path, client=client)
     assert report["versions"]["(no kb_run_id)"]["action"] == "deleted"
     assert _data_count(client, data_name) == 2
+
+
+def test_paginates_past_300_result_read_cap(tmp_path):
+    """Collections with >300 records must be read fully before grouping (issue #25)."""
+    client = chromadb.EphemeralClient()
+    control_name, data_name = _seed(client)  # 6 records across three versions
+    data = client.get_collection(data_name)
+    big = 340
+    data.upsert(
+        ids=[f"OLD_extra_{i}" for i in range(big)],
+        metadatas=[{"kb_run_id": OLD} for _ in range(big)],
+        documents=["x"] * big,
+        embeddings=[[1.0, 0.0]] * big,
+    )
+    config_path = _write_config(tmp_path, control_name, data_name)
+    report = cleanup_old_kb_runs.run(config_path=config_path, client=client)
+    assert report["versions"][OLD]["records"] == big + 1
+    # OLD(341) + OLDER(3) 全刪；ACTIVE(2) 保留
+    assert report["deleted_records"] == report["versions"][OLD]["records"] + 3
+    assert _data_count(client, data_name) == 2  # only ACTIVE remains

@@ -193,3 +193,49 @@ def test_cli_kb_run_id_flag(tmp_path, monkeypatch, capsys):
         where={"kb_run_id": "20260911-010101"}
     )
     assert len(results["ids"]) == 3
+
+
+class _RecordingCollection:
+    """Fake collection that records upsert calls instead of writing."""
+
+    def __init__(self):
+        self.upsert_calls = []
+
+    def upsert(self, ids, metadatas, documents, embeddings):
+        self.upsert_calls.append(
+            {
+                "ids": list(ids),
+                "metadatas": list(metadatas),
+                "documents": list(documents),
+                "embeddings": list(embeddings),
+            }
+        )
+
+
+class _FakeClient:
+    """Fake client returning the recording collection."""
+
+    def __init__(self, collection):
+        self._collection = collection
+
+    def get_or_create_collection(self, name):
+        return self._collection
+
+
+def test_upsert_batched_under_chroma_cloud_per_write_limit(tmp_path):
+    """Chroma Cloud caps one upsert request at 300 records; writes must batch (issue #25)."""
+    texts = [f"第 {i} 塊" for i in range(250)]
+    chunks_path, npy_path = _write_fixture(tmp_path, texts)
+    collection = _RecordingCollection()
+    manifest = indexer.run(
+        chunks_path=chunks_path,
+        embeddings_path=npy_path,
+        config_path=CONFIG_PATH,
+        client=_FakeClient(collection),
+    )
+    assert manifest["upsert_count"] == 250
+    sizes = [len(call["ids"]) for call in collection.upsert_calls]
+    assert sizes == [100, 100, 50]
+    assert all(size <= indexer.UPSERT_BATCH_SIZE for size in sizes)
+    written = [i for call in collection.upsert_calls for i in call["ids"]]
+    assert len(written) == len(set(written)) == 250

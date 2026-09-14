@@ -35,6 +35,10 @@ STATUS_PATH = ROOT / "status" / "kb_status.json"
 
 GOLDEN_HIT_RATE_THRESHOLD = 0.8
 
+# Chroma Cloud「Maximum number of results returned」上限為 300
+# （https://docs.trychroma.com/cloud/quotas-limits），get 需分頁讀完（issue #25）。
+GET_PAGE_SIZE = 250
+
 EmbedFn = Callable[[list[str]], list[list[float]]]
 
 
@@ -59,6 +63,24 @@ def expected_chunk_count(chunks_dir: pathlib.Path = CHUNKS_DIR) -> int:
     return total
 
 
+def get_ids_by_kb_run_id(collection: Any, kb_run_id: str) -> list[str]:
+    """Read all ids of a kb_run_id, paginating past Chroma Cloud's 300-result read cap."""
+    ids: list[str] = []
+    offset = 0
+    while True:
+        found = collection.get(
+            where={"kb_run_id": kb_run_id},
+            include=["metadatas"],
+            limit=GET_PAGE_SIZE,
+            offset=offset,
+        )
+        ids.extend(found["ids"])
+        if len(found["ids"]) < GET_PAGE_SIZE:
+            break
+        offset += GET_PAGE_SIZE
+    return ids
+
+
 def audit_kb_run(
     collection: Any,
     kb_run_id: str,
@@ -68,11 +90,7 @@ def audit_kb_run(
     golden_top_k: int,
 ) -> dict[str, Any]:
     """Run the three read-only checks against a candidate kb_run_id."""
-    found = collection.get(
-        where={"kb_run_id": kb_run_id},
-        include=["metadatas"],
-    )
-    ids: list[str] = list(found["ids"])
+    ids: list[str] = get_ids_by_kb_run_id(collection, kb_run_id)
     actual_chunks = len(ids)
     unique_ids = set(ids)
     duplicate_ids = sorted({i for i in ids if ids.count(i) > 1})

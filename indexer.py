@@ -15,6 +15,10 @@ Connection: ``chromadb.CloudClient`` with credentials from the environment
 variables ``CHROMA_API_KEY`` / ``CHROMA_TENANT`` / ``CHROMA_DATABASE``.
 Any connection or write failure exits with a non-zero exit code (whole
 batch aborted), per spec §5.6.
+
+Chroma Cloud caps each upsert request at 300 records
+(https://docs.trychroma.com/cloud/quotas-limits), so writes are split
+into batches of ``UPSERT_BATCH_SIZE`` (issue #25).
 """
 from __future__ import annotations
 
@@ -34,6 +38,10 @@ ROOT = pathlib.Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config" / "pipeline.yaml"
 CHUNKS_FIXTURE_PATH = ROOT / "data" / "chunks" / "sample.json"
 EMBEDDINGS_FIXTURE_PATH = ROOT / "data" / "embeddings" / "sample.npy"
+
+# Chroma Cloud「Maximum number of records per write」上限為 300
+# （https://docs.trychroma.com/cloud/quotas-limits）；留安全餘量分批寫入。
+UPSERT_BATCH_SIZE = 100
 
 
 def load_config(path: pathlib.Path = CONFIG_PATH) -> dict[str, Any]:
@@ -108,12 +116,15 @@ def run(
     documents = [chunk["text"] for chunk in chunks]
 
     collection = client.get_or_create_collection(collection_name)
-    collection.upsert(
-        ids=ids,
-        metadatas=metadatas,
-        documents=documents,
-        embeddings=vectors.tolist(),
-    )
+    # Chroma Cloud 每次 upsert 請求上限 300 筆（issue #25），分批寫入
+    for start in range(0, len(ids), UPSERT_BATCH_SIZE):
+        end = start + UPSERT_BATCH_SIZE
+        collection.upsert(
+            ids=ids[start:end],
+            metadatas=metadatas[start:end],
+            documents=documents[start:end],
+            embeddings=vectors[start:end].tolist(),
+        )
 
     return {
         "doc_id": doc_id,
