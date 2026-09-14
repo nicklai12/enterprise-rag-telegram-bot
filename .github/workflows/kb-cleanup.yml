@@ -1,0 +1,57 @@
+# 手動清理 Chroma Cloud data collection 中的舊 kb_run_id 版本（issue #25）。
+#
+# 做法 B 每次 pipeline 都保留候選版本，Starter 額度（300 筆 records）用盡時
+# 以此工具騰出空間。本 workflow 僅由 workflow_dispatch 手動觸發。
+name: kb-cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run=只預覽 / keep-active=只刪非 active 版本 / all=全刪重來"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - keep-active
+          - all
+
+# 與 kb-pipeline 共用 lock：清理與流水線不能同時對 collection 操作
+concurrency:
+  group: kb-pipeline
+  cancel-in-progress: false
+
+# Chroma Cloud 憑證一律由 GitHub Secrets 注入
+env:
+  CHROMA_API_KEY: ${{ secrets.CHROMA_API_KEY }}
+  CHROMA_TENANT: ${{ secrets.CHROMA_TENANT }}
+  CHROMA_DATABASE: ${{ secrets.CHROMA_DATABASE }}
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # 只需要 chromadb + PyYAML（cleanup_old_kb_runs.py 的相依），
+      # 不裝完整 requirements.txt（torch / unstructured 太重）
+      - name: Install dependencies
+        run: pip install "chromadb>=1.0,<2.0" "PyYAML>=6.0,<7.0"
+
+      - name: Run cleanup
+        run: |
+          set -e
+          case "${{ inputs.mode }}" in
+            dry-run)     python cleanup_old_kb_runs.py --dry-run ;;
+            keep-active) python cleanup_old_kb_runs.py ;;
+            all)         python cleanup_old_kb_runs.py --all ;;
+          esac
