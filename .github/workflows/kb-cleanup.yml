@@ -81,7 +81,9 @@ jobs:
 
           report = []
           for db in databases:
-              client = chromadb.CloudClient(tenant=tenant, database=db.name, api_key=api_key)
+              # list_databases() 回傳 dict（部分版本為 Database 物件），兩者都支援
+              db_name = db["name"] if isinstance(db, dict) else db.name
+              client = chromadb.CloudClient(tenant=tenant, database=db_name, api_key=api_key)
               collections = []
               for name in sorted(c.name for c in client.list_collections()):
                   col = client.get_collection(name)
@@ -94,7 +96,7 @@ jobs:
                       )
                       entry["kb_run_ids"] = dict(sorted(runs.items()))
                   collections.append(entry)
-              report.append({"database": db.name, "collections": collections})
+              report.append({"database": db_name, "collections": collections})
           print(json.dumps({"tenant": tenant, "databases": report}, ensure_ascii=False, indent=2))
           EOF
 
