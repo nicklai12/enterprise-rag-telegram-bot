@@ -41,6 +41,10 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "config" / "pipeline.yaml"
 
+# Chroma Cloud「Maximum number of results returned」上限為 300
+# （https://docs.trychroma.com/cloud/quotas-limits），get 需分頁讀完（issue #25）。
+GET_PAGE_SIZE = 250
+
 DELETE_BATCH_SIZE = 100
 
 
@@ -77,10 +81,25 @@ def read_active_kb_run_id(client: Any, config: dict[str, Any]) -> str | None:
 
 
 def group_ids_by_kb_run_id(collection: Any) -> dict[str, list[str]]:
-    """Group all record ids in the collection by their metadata kb_run_id."""
-    found = collection.get(include=["metadatas"])
+    """Group all record ids in the collection by their metadata kb_run_id.
+
+    Paginates: Chroma Cloud caps each read at 300 results, so a large
+    collection returns incomplete data without limit/offset (issue #25).
+    """
+    found_ids: list[str] = []
+    found_metadatas: list[Any] = []
+    offset = 0
+    while True:
+        found = collection.get(
+            include=["metadatas"], limit=GET_PAGE_SIZE, offset=offset
+        )
+        found_ids.extend(found["ids"])
+        found_metadatas.extend(found["metadatas"])
+        if len(found["ids"]) < GET_PAGE_SIZE:
+            break
+        offset += GET_PAGE_SIZE
     groups: dict[str, list[str]] = {}
-    for record_id, metadata in zip(found["ids"], found["metadatas"]):
+    for record_id, metadata in zip(found_ids, found_metadatas):
         key = (metadata or {}).get("kb_run_id") or "(no kb_run_id)"
         groups.setdefault(key, []).append(record_id)
     return groups

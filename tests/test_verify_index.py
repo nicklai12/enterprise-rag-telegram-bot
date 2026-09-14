@@ -217,3 +217,45 @@ def test_all_checks_pass(tmp_path):
     status = json.loads((tmp_path / "kb_status.json").read_text("utf-8"))
     assert status["runs"][-1]["status"] == "success"
     assert status["active_kb_run_id"] is None
+
+
+class _CappedReadCollection:
+    """Simulates Chroma Cloud: a single get returns at most 300 records (issue #25)."""
+
+    def __init__(self, ids, metadatas):
+        self._ids = ids
+        self._metadatas = metadatas
+
+    def get(self, where=None, include=None, limit=None, offset=0):
+        idxs = [
+            i
+            for i, m in enumerate(self._metadatas)
+            if m["kb_run_id"] == where["kb_run_id"]
+        ]
+        idxs = idxs[offset:]
+        if limit is not None:
+            idxs = idxs[:limit]
+        return {
+            "ids": [self._ids[i] for i in idxs],
+            "metadatas": [self._metadatas[i] for i in idxs],
+        }
+
+
+def test_audit_paginates_past_300_result_read_cap():
+    """A candidate version with >300 chunks must still be counted fully (issue #25)."""
+    total = 345
+    ids = [f"run_doc_a_{i}" for i in range(total)]
+    metadatas = [{"kb_run_id": "run", "doc_id": "doc_a"} for _ in range(total)]
+    collection = _CappedReadCollection(ids, metadatas)
+    report = verify_index.audit_kb_run(
+        collection=collection,
+        kb_run_id="run",
+        expected_chunks=total,
+        golden_qa=[],
+        embed_fn=lambda texts: [],
+        golden_top_k=3,
+    )
+    count_check = report["checks"]["count_match"]
+    assert count_check["passed"] is True
+    assert count_check["actual"] == total
+    assert report["checks"]["no_duplicate_ids"]["passed"] is True
