@@ -1,18 +1,20 @@
 # 手動清理 Chroma Cloud data collection 中的舊 kb_run_id 版本（issue #25）。
 #
 # 做法 B 每次 pipeline 都保留候選版本，Starter 額度（300 筆 records）用盡時
-# 以此工具騰出空間。本 workflow 僅由 workflow_dispatch 手動觸發。
+# 以此工具騰出空間。額度以「整個 database」計算，若殘留資料在其他 collection，
+# 用 inspect 模式找出位置。本 workflow 僅由 workflow_dispatch 手動觸發。
 name: kb-cleanup
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "dry-run=只預覽 / keep-active=只刪非 active 版本 / all=全刪重來"
+        description: "inspect=盤點全庫 / dry-run=只預覽 / keep-active=只刪非 active 版本 / all=全刪重來"
         required: true
         default: "dry-run"
         type: choice
         options:
+          - inspect
           - dry-run
           - keep-active
           - all
@@ -47,7 +49,40 @@ jobs:
       - name: Install dependencies
         run: pip install "chromadb>=1.0,<2.0" "PyYAML>=6.0,<7.0"
 
+      - name: Inspect database
+        if: ${{ inputs.mode == 'inspect' }}
+        # 唯讀盤點：列出 database 內所有 collection 的筆數與 kb_run_id 分佈，
+        # 用來定位 quota 統計中的殘留資料落在哪個 collection（issue #25）
+        run: |
+          python - <<'EOF'
+          import json
+          import os
+          from collections import Counter
+
+          import chromadb
+
+          client = chromadb.CloudClient(
+              api_key=os.environ["CHROMA_API_KEY"],
+              tenant=os.environ["CHROMA_TENANT"],
+              database=os.environ["CHROMA_DATABASE"],
+          )
+          report = []
+          for name in sorted(c.name for c in client.list_collections()):
+              col = client.get_collection(name)
+              entry = {"collection": name, "records": col.count()}
+              if entry["records"]:
+                  found = col.get(include=["metadatas"])
+                  runs = Counter(
+                      (m or {}).get("kb_run_id") or "(no kb_run_id)"
+                      for m in found["metadatas"]
+                  )
+                  entry["kb_run_ids"] = dict(sorted(runs.items()))
+              report.append(entry)
+          print(json.dumps({"collections": report}, ensure_ascii=False, indent=2))
+          EOF
+
       - name: Run cleanup
+        if: ${{ inputs.mode != 'inspect' }}
         run: |
           set -e
           case "${{ inputs.mode }}" in
