@@ -124,6 +124,20 @@ def test_refuses_to_wipe_without_pointer_or_keep(tmp_path):
     assert _data_count(client, data_name) == 6
 
 
+def test_all_flag_wipes_everything_without_pointer(tmp_path):
+    """--all explicitly opts in to a full wipe when no active version exists."""
+    client = chromadb.EphemeralClient()
+    control_name, data_name = _seed(client, with_pointer=False)
+    config_path = _write_config(tmp_path, control_name, data_name)
+    report = cleanup_old_kb_runs.run(
+        all_records=True, config_path=config_path, client=client
+    )
+    assert report["status"] == "cleaned"
+    assert report["active_kb_run_id"] is None
+    assert report["deleted_records"] == 6
+    assert _data_count(client, data_name) == 0
+
+
 def test_deletes_records_missing_kb_run_id_metadata(tmp_path):
     """Records without kb_run_id metadata are stale garbage and get removed."""
     client = chromadb.EphemeralClient()

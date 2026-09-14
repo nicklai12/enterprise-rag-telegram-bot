@@ -12,7 +12,9 @@ control collection pointer, per spec §4.2) nor explicitly kept via
 Safety rails:
 - ``--dry-run`` reports what would be deleted without deleting.
 - If no active pointer exists and no ``--keep`` is given, nothing is
-  deleted (refuses to wipe the whole collection).
+  deleted (refuses to wipe the whole collection). Use ``--all`` to
+  explicitly wipe every record — e.g. when nothing was ever published
+  and all records are leftovers from failed runs.
 
 Connection: ``chromadb.CloudClient`` with credentials from the environment
 variables ``CHROMA_API_KEY`` / ``CHROMA_TENANT`` / ``CHROMA_DATABASE``
@@ -22,6 +24,7 @@ Usage:
     python cleanup_old_kb_runs.py --dry-run              # report only
     python cleanup_old_kb_runs.py                        # delete stale versions
     python cleanup_old_kb_runs.py --keep 20260914-124536 # also keep this version
+    python cleanup_old_kb_runs.py --all                  # wipe every record
 """
 from __future__ import annotations
 
@@ -86,6 +89,7 @@ def group_ids_by_kb_run_id(collection: Any) -> dict[str, list[str]]:
 def run(
     keep: list[str] | None = None,
     dry_run: bool = False,
+    all_records: bool = False,
     config_path: pathlib.Path = CONFIG_PATH,
     client: Any = None,
 ) -> dict[str, Any]:
@@ -96,14 +100,15 @@ def run(
     if client is None:
         client = connect_chroma()
 
-    active_kb_run_id = read_active_kb_run_id(client, config)
+    active_kb_run_id = None if all_records else read_active_kb_run_id(client, config)
     keep_ids = set(keep or [])
     if active_kb_run_id:
         keep_ids.add(active_kb_run_id)
-    if not keep_ids:
+    if not keep_ids and not all_records:
         raise RuntimeError(
             "no active pointer and no --keep given; refusing to wipe the whole "
-            "collection (pass --keep <kb_run_id> to keep at least one version)"
+            "collection (pass --keep <kb_run_id> to keep at least one version, "
+            "or --all to wipe every record explicitly)"
         )
 
     collection = client.get_collection(data_collection_name)
@@ -153,6 +158,12 @@ def main() -> None:
         help="Report what would be deleted without deleting.",
     )
     parser.add_argument(
+        "--all",
+        dest="all_records",
+        action="store_true",
+        help="Wipe every record in the data collection (explicit opt-in).",
+    )
+    parser.add_argument(
         "--config",
         type=pathlib.Path,
         default=CONFIG_PATH,
@@ -160,7 +171,12 @@ def main() -> None:
     )
     args = parser.parse_args()
     try:
-        report = run(keep=args.keep, dry_run=args.dry_run, config_path=args.config)
+        report = run(
+            keep=args.keep,
+            dry_run=args.dry_run,
+            all_records=args.all_records,
+            config_path=args.config,
+        )
     except Exception as exc:
         print(f"cleanup failed: {exc}", file=sys.stderr)
         sys.exit(1)
