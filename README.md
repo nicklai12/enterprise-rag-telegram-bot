@@ -281,7 +281,7 @@ Bot 流程：
 ## 已知限制（本階段承認但不解）
 
 - Chroma Cloud 免費額度用盡需人工處理（未做自動監控/攔截）
-- 做法 B 會累積舊 `kb_run_id` 資料：未提供自動清理舊版本機制
+- 做法 B 會累積舊 `kb_run_id` 資料：未提供自動清理舊版本機制（可用 `cleanup_old_kb_runs.py` 手動清理非 active 版本，issue #25）
 - Render free tier 可能 idle sleep 造成冷啟動延遲
 - `kb_status.json` 僅由 `verify_index.py` 寫入：在 verify 之前失敗的輪次（如 parser/chunker 失敗）不會留下 failed 紀錄，觀測上有缺口
 
