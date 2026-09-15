@@ -101,6 +101,69 @@ DOCS = {
 }
 
 
+def test_golden_hit_matches_doc_id_suffix(tmp_path):
+    """metadata doc_id 是推導出的完整 id（data_raw_HR_…）；golden_qa.yaml 寫
+    檔案 basename，命中檢查必須以 suffix 比對（issue #32）。"""
+    collection = _build_collection(
+        {"data_raw_HR_leave_rules": DOCS["leave_rules"]}
+    )
+    chunks_dir = _write_chunks_manifest(tmp_path, "sample", 1)
+    golden = _write_golden_qa(
+        tmp_path,
+        [{"question": "特休有幾天？", "expected_doc_id": "leave_rules"}],
+    )
+
+    report = _run(tmp_path, collection, chunks_dir, golden)
+
+    golden_check = report["checks"]["golden_qa_hit_rate"]
+    assert golden_check["hits"] == 1
+    assert golden_check["hit_rate"] == 1.0
+
+
+def test_expected_count_restricted_to_batch_doc_ids(tmp_path):
+    """目錄內的 fixture/殘留 manifest 不得計入期望 chunk 數（issue #33）。
+
+    chunks 目錄同時有 doc_a（2 chunks，本批次）與 sample（1 chunk，
+    committed fixture）；doc_ids=["doc_a"] 時期望數為 2 且審計通過，
+    若誤用整個目錄則期望數為 3 ≠ 2 必敗。
+    """
+    collection = _build_collection({"doc_a": ["特休：三日。", "事假：十四日。"]})
+    chunks_dir = tmp_path / "chunks"
+    chunks_dir.mkdir(exist_ok=True)
+    for doc_id, chunk_count in (("doc_a", 2), ("sample", 1)):
+        manifest = {
+            "doc_id": doc_id,
+            "status": "chunked",
+            "chunk_count": chunk_count,
+        }
+        (chunks_dir / f"{doc_id}.manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False), encoding="utf-8"
+        )
+    golden = _write_golden_qa(
+        tmp_path,
+        [{"question": "特休有幾天？", "expected_doc_id": "doc_a"}],
+    )
+    # 整個目錄加總（舊行為）會是 3 ≠ 2：先固定這個會造成誤判的來源
+    assert verify_index.expected_chunk_count(chunks_dir) == 3
+
+    report = verify_index.run(
+        kb_run_id=KB_RUN_ID,
+        config_path=CONFIG_PATH,
+        chunks_dir=chunks_dir,
+        golden_qa_path=golden,
+        status_path=tmp_path / "kb_status.json",
+        collection=collection,
+        embed_fn=fake_embed,
+        doc_ids=["doc_a"],
+    )
+
+    count_check = report["checks"]["count_match"]
+    assert count_check["expected"] == 2
+    assert count_check["actual"] == 2
+    assert count_check["passed"] is True
+    assert report["passed"] is True
+
+
 def test_count_mismatch_fails(tmp_path):
     """Manifest expects 3 chunks; Chroma holds 2 → audit must fail."""
     collection = _build_collection(

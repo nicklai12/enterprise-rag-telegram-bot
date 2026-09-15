@@ -117,10 +117,18 @@ jobs:
               --kb-run-id "${{ steps.run_id.outputs.kb_run_id }}"
           done
 
-      # 只讀審計候選 kb_run_id；任何一項檢查不過 → exit code 非 0 → publisher 被跳過
+      # 只讀審計候選 kb_run_id；任何一項檢查不過 → exit code 非 0 → publisher 被跳過。
+      # doc_id 一律由 doc_classifier 推導（issue #15）；只加總本批次成功文件的
+      # manifests 作為期望 chunk 數，避免目錄內 fixture/殘留 manifest 污染（issue #33）
       - name: verify
         if: ${{ steps.parser_results.outputs.ok != '[]' }}
-        run: python verify_index.py --kb-run-id "${{ steps.run_id.outputs.kb_run_id }}"
+        run: |
+          args=(--kb-run-id "${{ steps.run_id.outputs.kb_run_id }}")
+          while IFS= read -r f; do
+            doc_id=$(python doc_classifier.py --doc-id "$f")
+            args+=(--doc-id "$doc_id")
+          done < <(echo '${{ steps.parser_results.outputs.ok }}' | jq -r '.[]')
+          python verify_index.py "${args[@]}"
 
       # 只有 verify 成功（success()）才會執行：更新 control collection 的 active 指標
       - name: publisher

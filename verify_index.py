@@ -3,13 +3,14 @@
 Per spec §5.7, a candidate version is publishable only if all three checks
 pass:
 
-1. count match — expected chunk total (summed from the chunks manifests)
-   vs. actual rows in the Chroma data collection where ``kb_run_id ==
-   candidate``.
+1. count match — expected chunk total (summed from the chunks manifests
+   of this batch's successfully processed docs) vs. actual rows in the
+   Chroma data collection where ``kb_run_id == candidate``.
 2. no duplicate ids within the kb_run_id scope.
 3. golden QA hit rate >= 80% — retrieve top_n (``retrieval.golden_top_k``
    from pipeline.yaml) per question in tests/golden_qa.yaml and check the
-   returned metadata for ``expected_doc_id``.
+   returned metadata for ``expected_doc_id`` (suffix match: metadata
+   ``doc_id`` is the derived id, e.g. ``data_raw_HR_<basename>``).
 
 Any failure → non-zero exit code and a ``failed`` entry (with the concrete
 numbers) appended to status/kb_status.json. This script never updates the
@@ -54,8 +55,25 @@ def load_golden_qa(path: pathlib.Path = GOLDEN_QA_PATH) -> list[dict[str, str]]:
         return yaml.safe_load(f)
 
 
-def expected_chunk_count(chunks_dir: pathlib.Path = CHUNKS_DIR) -> int:
-    """Sum chunk_count across all chunk manifests in the directory."""
+def expected_chunk_count(
+    chunks_dir: pathlib.Path = CHUNKS_DIR,
+    doc_ids: list[str] | None = None,
+) -> int:
+    """Sum chunk_count across this batch's chunk manifests.
+
+    With ``doc_ids`` (the pipeline's way), only ``{doc_id}.manifest.json``
+    for those docs are summed — committed fixtures (e.g.
+    ``data/chunks/sample.manifest.json``) and leftovers from previous runs
+    must not inflate the expected count (issue #33). Without ``doc_ids``
+    the legacy whole-directory behavior is kept for compatibility.
+    """
+    if doc_ids is not None:
+        total = 0
+        for doc_id in doc_ids:
+            manifest_path = chunks_dir / f"{doc_id}.manifest.json"
+            with manifest_path.open("r", encoding="utf-8") as f:
+                total += int(json.load(f)["chunk_count"])
+        return total
     total = 0
     for manifest_path in sorted(chunks_dir.glob("*.manifest.json")):
         with manifest_path.open("r", encoding="utf-8") as f:
@@ -107,7 +125,7 @@ def audit_kb_run(
             include=["metadatas"],
         )
         hit = any(
-            meta.get("doc_id") == item["expected_doc_id"]
+            str(meta.get("doc_id") or "").endswith(item["expected_doc_id"])
             for meta in result["metadatas"][0]
         )
         hits += int(hit)
@@ -212,8 +230,13 @@ def run(
     status_path: pathlib.Path = STATUS_PATH,
     collection: Any = None,
     embed_fn: EmbedFn = None,
+    doc_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Audit a candidate kb_run_id and record the outcome in kb_status.json."""
+    """Audit a candidate kb_run_id and record the outcome in kb_status.json.
+
+    ``doc_ids``: this batch's successfully processed docs; restricts the
+    expected-chunk-count source to their manifests (issue #33).
+    """
     config = load_config(config_path)
     golden_top_k = int(config["retrieval"]["golden_top_k"])
     if collection is None:
@@ -225,7 +248,7 @@ def run(
     report = audit_kb_run(
         collection=collection,
         kb_run_id=kb_run_id,
-        expected_chunks=expected_chunk_count(chunks_dir),
+        expected_chunks=expected_chunk_count(chunks_dir, doc_ids),
         golden_qa=load_golden_qa(golden_qa_path),
         embed_fn=embed_fn,
         golden_top_k=golden_top_k,
@@ -255,6 +278,17 @@ def main() -> int:
         help="Directory of chunks JSON + manifests (expected count source).",
     )
     parser.add_argument(
+        "--doc-id",
+        action="append",
+        default=None,
+        metavar="DOC_ID",
+        help=(
+            "A doc processed in this batch (repeatable). Restricts the "
+            "expected chunk count to these docs' manifests; omit only for "
+            "legacy whole-directory counting (issue #33)."
+        ),
+    )
+    parser.add_argument(
         "--golden-qa",
         type=pathlib.Path,
         default=GOLDEN_QA_PATH,
@@ -274,6 +308,7 @@ def main() -> int:
         chunks_dir=args.chunks_dir,
         golden_qa_path=args.golden_qa,
         status_path=args.status,
+        doc_ids=args.doc_id,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report["passed"] else 1
