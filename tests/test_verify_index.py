@@ -101,6 +101,25 @@ DOCS = {
 }
 
 
+def test_golden_hit_matches_doc_id_suffix(tmp_path):
+    """metadata doc_id 是推導出的完整 id（data_raw_HR_…）；golden_qa.yaml 寫
+    檔案 basename，命中檢查必須以 suffix 比對（issue #32）。"""
+    collection = _build_collection(
+        {"data_raw_HR_leave_rules": DOCS["leave_rules"]}
+    )
+    chunks_dir = _write_chunks_manifest(tmp_path, "sample", 1)
+    golden = _write_golden_qa(
+        tmp_path,
+        [{"question": "特休有幾天？", "expected_doc_id": "leave_rules"}],
+    )
+
+    report = _run(tmp_path, collection, chunks_dir, golden)
+
+    golden_check = report["checks"]["golden_qa_hit_rate"]
+    assert golden_check["hits"] == 1
+    assert golden_check["hit_rate"] == 1.0
+
+
 def test_count_mismatch_fails(tmp_path):
     """Manifest expects 3 chunks; Chroma holds 2 → audit must fail."""
     collection = _build_collection(

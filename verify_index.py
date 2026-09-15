@@ -9,7 +9,8 @@ pass:
 2. no duplicate ids within the kb_run_id scope.
 3. golden QA hit rate >= 80% — retrieve top_n (``retrieval.golden_top_k``
    from pipeline.yaml) per question in tests/golden_qa.yaml and check the
-   returned metadata for ``expected_doc_id``.
+   returned metadata for ``expected_doc_id`` (suffix match: metadata
+   ``doc_id`` is the derived id, e.g. ``data_raw_HR_<basename>``).
 
 Any failure → non-zero exit code and a ``failed`` entry (with the concrete
 numbers) appended to status/kb_status.json. This script never updates the
@@ -107,7 +108,7 @@ def audit_kb_run(
             include=["metadatas"],
         )
         hit = any(
-            meta.get("doc_id") == item["expected_doc_id"]
+            str(meta.get("doc_id") or "").endswith(item["expected_doc_id"])
             for meta in result["metadatas"][0]
         )
         hits += int(hit)
