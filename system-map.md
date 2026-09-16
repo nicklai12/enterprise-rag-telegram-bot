@@ -60,6 +60,7 @@ Telegram Bot（Render 常駐，只讀）
 | `verify_index.py` | 獨立審計（只讀）：驗證候選 kb_run_id 的品質 | Chroma Cloud + golden_qa | 通過/中止 + 寫 status |
 | `publisher.py` | 發布：通過審計才更新 active_kb_run_id | 審計通過訊號 + kb_run_id | Chroma Cloud（control collection）+ status |
 | `bot.py` | Telegram 問答（只讀）：讀 active_kb_run_id → 檢索 → Groq | 使用者訊息 | 回覆（含來源） |
+| `cleanup_old_kb_runs.py` + `kb-cleanup` workflow | 手動維運（非 pipeline 階段）：清理 data collection 中非 active 的舊 `kb_run_id`，釋放 Chroma Cloud Starter 額度（issue #25） | `workflow_dispatch`（inspect / dry-run / keep-active / all） | 刪除舊版本記錄 |
 
 ---
 
