@@ -235,6 +235,29 @@ retrieval:
 
 ---
 
+## 維運操作：清理舊 kb_run_id 版本（kb-cleanup）
+
+做法 B 每次 pipeline 都保留候選版本，舊 `kb_run_id` 會一直累積在 data collection，
+直到 Chroma Cloud Starter 額度（300 records，以整個 database 計）用盡、阻塞新寫入
+（issue #25）。此時以 **`kb-cleanup` workflow** 手動清理（僅 `workflow_dispatch` 觸發，
+與 kb-pipeline 共用 concurrency lock，不會與排程流水線同時操作 collection）。
+
+> 這是**手動維運工具**，不是 pipeline 的一環；平時不需要執行。
+
+到 **Actions → kb-cleanup → Run workflow** 選擇模式（建議依序執行）：
+
+| 模式 | 行為 |
+|------|------|
+| `inspect` | 唯讀盤點：列出 tenant 內**所有 database** 的 collection 筆數與 `kb_run_id` 分佈（額度跨 database 計算，殘留資料可能不在本 pipeline 的 database） |
+| `dry-run` | 預覽將刪除哪些記錄（不實際刪除） |
+| `keep-active` | 刪除 data collection 中非 active 版本的記錄（保留已發布版本可用） |
+| `all` | 清空 data collection 全部記錄（僅用於從未發布成功、全是失敗殘留時） |
+
+底層為 `cleanup_old_kb_runs.py`；若未讀到 active 指標且未指定 `--keep`，
+拒絕整批刪除（需明確 `--all` 才會清空）。
+
+---
+
 ## 審計規則（verify_index.py）
 
 驗收對象是「候選 `kb_run_id`」，需全部通過：
@@ -281,7 +304,7 @@ Bot 流程：
 ## 已知限制（本階段承認但不解）
 
 - Chroma Cloud 免費額度用盡需人工處理（未做自動監控/攔截）
-- 做法 B 會累積舊 `kb_run_id` 資料：未提供自動清理舊版本機制（可用 `cleanup_old_kb_runs.py` 手動清理非 active 版本，issue #25）
+- 做法 B 會累積舊 `kb_run_id` 資料：不自動清理（保留審計/比對彈性），需以 `kb-cleanup` workflow 手動清理（見「維運操作」）
 - Render free tier 可能 idle sleep 造成冷啟動延遲
 - `kb_status.json` 僅由 `verify_index.py` 寫入：在 verify 之前失敗的輪次（如 parser/chunker 失敗）不會留下 failed 紀錄，觀測上有缺口
 
