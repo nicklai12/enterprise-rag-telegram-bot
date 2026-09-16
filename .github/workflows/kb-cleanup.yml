@@ -89,10 +89,25 @@ jobs:
                   col = client.get_collection(name)
                   entry = {"collection": name, "records": col.count()}
                   if entry["records"]:
-                      found = col.get(include=["metadatas"])
+                      # Chroma Cloud 單次讀取上限 300 筆，需分頁讀完，
+                      # 否則 kb_run_id 分佈只統計到前 300 筆（issue #39，
+                      # 分頁寫法同 verify_index.py 的 GET_PAGE_SIZE 模式）。
+                      metas = []
+                      offset = 0
+                      page_size = 250
+                      while True:
+                          page = col.get(
+                              include=["metadatas"],
+                              limit=page_size,
+                              offset=offset,
+                          )
+                          metas.extend(page["metadatas"])
+                          if len(page["metadatas"]) < page_size:
+                              break
+                          offset += page_size
                       runs = Counter(
                           (m or {}).get("kb_run_id") or "(no kb_run_id)"
-                          for m in found["metadatas"]
+                          for m in metas
                       )
                       entry["kb_run_ids"] = dict(sorted(runs.items()))
                   collections.append(entry)
