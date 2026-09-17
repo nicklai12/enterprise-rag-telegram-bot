@@ -42,7 +42,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y poppler-utils libgl1
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        # 完整 pipeline 依賴（torch/unstructured 等）；requirements.txt 為 bot 精簡版（issue #41）
+        run: pip install -r requirements-pipeline.txt
 
       # 每次 pipeline 執行「共用一個」kb_run_id（spec §4.1），
       # 由 workflow 產生並傳給 indexer / verify / publisher

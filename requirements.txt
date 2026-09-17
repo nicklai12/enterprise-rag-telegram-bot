@@ -1,8 +1,10 @@
-jsonschema>=4.0,<5.0
-PyYAML>=6.0,<7.0
-pytest>=7.0,<8.0
-unstructured[pdf,docx,xlsx]>=0.16,<0.19
+# Render bot.py 專用（精簡版；完整 pipeline 依賴見 requirements-pipeline.txt）
+# torch 用 CPU-only wheel：避免 PyPI CUDA 版連帶安裝約 2.5 GB 的 nvidia 依賴（issue #41）。
+# --index-url 放 PyTorch CPU 索引、PyPI 作為 extra-index（PyTorch 官方 CPU-only 安裝方式）。
+--index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
 sentence-transformers>=3.0,<5.0
-chromadb>=1.0,<2.0
 python-telegram-bot>=21.0,<22.0
+chromadb>=1.0,<2.0
 groq>=0.11,<1.0
+PyYAML>=6.0,<7.0

@@ -1,0 +1,6 @@
+jsonschema>=4.0,<5.0
+PyYAML>=6.0,<7.0
+pytest>=7.0,<8.0
+unstructured[pdf,docx,xlsx]>=0.16,<0.19
+sentence-transformers>=3.0,<5.0
+chromadb>=1.0,<2.0

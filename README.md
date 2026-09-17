@@ -214,7 +214,7 @@ retrieval:
 ### 2. Render 部署 bot.py（常駐）
 
 1. Render 建立 **New → Web Service**，連接本 repo。
-2. Runtime 選 **Python 3**；Build Command 留預設（`pip install -r requirements.txt`），Start Command 設為：
+2. Runtime 選 **Python 3**；Build Command 留預設（`pip install -r requirements.txt`，此檔為 bot 專用精簡版；完整 pipeline 依賴在 `requirements-pipeline.txt`，見 issue #41），Start Command 設為：
    ```
    python bot.py
    ```
