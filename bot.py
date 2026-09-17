@@ -34,6 +34,8 @@ import asyncio
 import os
 import pathlib
 import sys
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Callable
 
 import chromadb
@@ -182,8 +184,37 @@ def _default_chat_fn() -> ChatFn:
     return chat
 
 
+def start_health_server() -> None:
+    """Serve a tiny HTTP 200 on ``$PORT`` so Render's web-service health check passes.
+
+    A polling bot listens on no port, so Render's deploy port scan times out and
+    marks the deploy failed (issue #45; free tier has no background workers).
+    Runs in a daemon thread; the RAG query path is untouched. Must be started
+    before the heavy init (Chroma connect + embedding model download) so the
+    health check passes while those are still in flight.
+    """
+    port = int(os.environ.get("PORT", "10000"))
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 (http.server API naming)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"ok")
+
+        def log_message(self, *args: Any) -> None:
+            pass  # keep Render logs free of health-probe noise
+
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+
 def main() -> None:
     from telegram.ext import Application, MessageHandler, filters
+
+    # 先開 health endpoint：Chroma 連線與 embedding model 首次下載較慢，
+    # Render health check 需盡快在 $PORT 看到監聽（issue #45）
+    start_health_server()
 
     config = load_config()
     vectorstore = config.get("vectorstore", {})

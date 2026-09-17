@@ -231,6 +231,10 @@ retrieval:
 | `GROQ_MODEL` | Groq 模型名稱，覆蓋 `config/pipeline.yaml` 的 `llm.model`（例如 `llama-3.3-70b-versatile`）；**不設＝使用 pipeline.yaml 預設值** | 選填 |
 
 4. 方案選 Free 即可（注意：free tier 可能 idle sleep 造成冷啟動延遲，為已知限制）。
+   bot.py 會在 Render 注入的 `$PORT`（預設 10000）提供一個極小 health endpoint
+   （回應 `ok`），讓 Web Service 的部署健康檢查通過（polling bot 本身不開 port，
+   否則 deploy 會 Timed Out，issue #45）；也可用 UptimeRobot 之類的免費監控定期
+   ping 此端點，減少 idle sleep。
 5. 部署後以真人 Telegram 帳號私訊 bot 一題知識庫內問題，確認回覆正確且附 `來源：` 頁尾。
 
 ---
