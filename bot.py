@@ -161,11 +161,17 @@ def answer_question(
 
 
 def _default_embed_fn(config: dict[str, Any]) -> EmbedFn:
-    """Embed user questions with the pipeline's sentence-transformers model."""
-    from sentence_transformers import SentenceTransformer
+    """Embed user questions with the same model used at index time.
 
-    model = SentenceTransformer(config["embedding"]["model"])
-    return lambda texts: model.encode(texts).tolist()
+    Uses fastembed (ONNX Runtime) instead of sentence-transformers/torch:
+    vector-identical for BAAI/bge-small-zh-v1.5 (cos ≥ 0.999999, top-k
+    ranking verified) at ~1/5 the RAM — torch peaked at ~911 MB and OOM'd
+    Render's 512 MB free tier (issue #47).
+    """
+    from fastembed import TextEmbedding
+
+    model = TextEmbedding(config["embedding"]["model"])
+    return lambda texts: [vector.tolist() for vector in model.embed(texts)]
 
 
 def _default_chat_fn() -> ChatFn:
