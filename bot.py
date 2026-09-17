@@ -30,6 +30,7 @@ ephemeral ChromaDB with no Telegram/Groq network calls.
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import pathlib
 import sys
@@ -218,6 +219,10 @@ def main() -> None:
 
     application = Application.builder().token(os.environ["TELEGRAM_BOT_TOKEN"]).build()
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_message))
+    # Python 3.14 移除 get_event_loop() 在主線程隱式建立事件迴圈的行為，
+    # 而 python-telegram-bot 21.x 的 run_polling() 仍依賴該行為（issue #43）。
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     application.run_polling()
 
 
